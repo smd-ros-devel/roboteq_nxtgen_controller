@@ -1,0 +1,20 @@
+<package>
+  <description brief="roboteq_nxtgen_controller">
+
+     roboteq_nxtgen_controller
+
+  </description>
+  <author>Matt Richard</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/roboteq_nxtgen_controller</url>
+  <depend package="roscpp"/>
+  <depend package="trajectory_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="diagnostic_msgs"/>
+  <depend package="diagnostic_updater"/>
+  <depend package="dynamic_reconfigure"/>
+
+</package>
+
+
