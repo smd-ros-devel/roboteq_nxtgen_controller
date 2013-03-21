@@ -291,7 +291,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 
 			if( invert ) rpm *= -1;
 
-			ROS_INFO( "rpm: %f", rpm );
+			ROS_DEBUG( "rpm: %f", rpm );
 
 			// Round rpm value and send to channel 1
 			result = dev.SetCommand( _GO, 1, ( int )( rpm + 0.5 ) );
