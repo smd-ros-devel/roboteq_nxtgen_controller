@@ -90,20 +90,19 @@ bool NxtGenDriver::spin( )
 
 bool NxtGenDriver::init( )
 {
-
 	int result;
 
 	// Set channel 1 operating mode, 1 = open-looped speed,
 	// 2 = closed-loop speed, 3 = closed-loop position
-	result = dev.SetConfig( _MMOD, 1, operating_mode );
-	if( !checkResult( result ) )
-		return false;
+//	result = dev.SetConfig( _MMOD, 1, operating_mode );
+//	if( !checkResult( result ) )
+//		return false;
 
 	// Set channel 2 operating mode, 1 = open-looped speed,
 	// 2 = closed-loop speed, 3 = closed-loop position
-	result = dev.SetConfig( _MMOD, 2, operating_mode );
-	if( !checkResult( result ) )
-		return false;
+//	result = dev.SetConfig( _MMOD, 2, operating_mode );
+//	if( !checkResult( result ) )
+//		return false;
 
 	// Set encoder 1 usage
 	result = dev.SetConfig( _EMOD, 1, use_encoders ? 17 : 16 );
