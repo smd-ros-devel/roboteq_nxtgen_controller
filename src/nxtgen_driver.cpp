@@ -402,7 +402,7 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 
 		status.add( "Main battery voltage", ( double )main_battery_voltage / 10.0 );
 		status.add( "Internal voltage", ( double )driver_voltage / 10.0 );
-		status.add( "5V DSub connector voltage", ( double )dsub_5v_connector_voltage * 100.0 );
+		status.add( "5V DSub connector voltage", ( double )dsub_5v_connector_voltage / 100.0 );
 		status.add( "Motor 1 Amps", ( double )motor1_amps / 10.0 );
 		status.add( "Motor 2 Amps", ( double )motor2_amps / 10.0 );
 		status.add( "Battery 1 Amps", ( double )battery1_amps / 10.0 );
