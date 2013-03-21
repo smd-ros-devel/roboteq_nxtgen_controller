@@ -35,10 +35,11 @@ gencfg()
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_library(RoboteqDevice include/api_linux/Linux/RoboteqDevice.cpp)
+get_target_property(RoboteqDevice_CFLAGS RoboteqDevice COMPILE_FLAGS)
+set_target_properties(RoboteqDevice PROPERTIES COMPILE_FLAGS "${CFLAGS} -include unistd.h")
 rosbuild_add_library(nxtgen_driver src/nxtgen_driver.cpp)
 
 rosbuild_add_executable(nxtgen_driver_node src/nxtgen_driver_node.cpp)
 
 target_link_libraries(nxtgen_driver RoboteqDevice)
-#rosbuild_add_executable(nxtgen_driver_node src/nxtgen_driver_node.cpp)
 target_link_libraries(nxtgen_driver_node nxtgen_driver)
