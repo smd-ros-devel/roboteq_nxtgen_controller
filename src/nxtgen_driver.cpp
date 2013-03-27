@@ -8,14 +8,27 @@ namespace nxtgen_driver
 NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 	nh( nh ),
 	updater( ),
-	running( false )
+	running( false ),
+	error_count( 0 )
 {
 	ros::NodeHandle nh_priv( "~" );
 
 	nh_priv.param<std::string>( "hardware_id", hardware_id, "RoboteQ NxtGen" );
 	nh_priv.param<std::string>( "port", port, "/dev/ttyUSB0" );
 	nh_priv.param<bool>( "invert", invert, false );
+
 	nh_priv.param<bool>( "enable_watchdog", enable_watchdog, true );
+	nh_priv.param<double>( "watchdog_timeout", watchdog_timeout, 1 );
+
+	// Valid watchdog timeout is 0 to 65 seconds
+	if( watchdog_timeout <= 0 )
+	{
+		enable_watchdog = false;
+		watchdog_timeout = 0;
+	}
+	else if( watchdog_timeout > 65 )
+		watchdog_timeout = 65;
+
 	nh_priv.param<bool>( "use_encoders", use_encoders, false );
 	nh_priv.param<int>( "encoder_type", encoder_type, 0 );
 	nh_priv.param<int>( "encoder_ppr", encoder_ppr, 200 );
@@ -48,6 +61,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	joint_traj_sub = nh.subscribe( "cmd_joint_traj", 1, &NxtGenDriver::jointTrajCallback, this );
 	joint_state_pub = nh.advertise<sensor_msgs::JointState>( "joint_states", 1 );
+	reset_enc_srv = nh.advertiseService( "reset_encoder_count", &NxtGenDriver::resetEncoderCount, this );
 
 	updater.setHardwareID( hardware_id );
 	updater.add( hardware_id + " Status", this, &NxtGenDriver::deviceStatus );
@@ -106,8 +120,8 @@ bool NxtGenDriver::init( )
 //	if( !checkResult( result ) )
 //		return false;
 
-	// Set RS232 watchdog mode
-	result = dev.SetConfig( _RWD, enable_watchdog ? 1 : 0 );
+	// Set RS232 watchdog timeout (0 means disabled)
+	result = dev.SetConfig( _RWD, enable_watchdog ? ( 1000 * ( int )watchdog_timeout ) : 0 );
 	if( !checkResult( result ) )
 		return false;
 
@@ -280,6 +294,17 @@ bool NxtGenDriver::getMotorRPM( int &ch1, int &ch2 )
 	return true;
 }
 
+std::string NxtGenDriver::operatingModeToStr( OperatingMode op_mode )
+{
+	switch( op_mode )
+	{
+		case OperatingModes::OPEN_LOOP_SPEED: 		return "Open Loop Speed";
+		case OperatingModes::CLOSED_LOOP_SPEED:		return "Closed Loop Speed";
+		case OperatingModes::CLOSED_LOOP_POSITION: 	return "Closed Loop Position";
+		default:					return "Unknown";
+	}
+}
+
 void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg )
 {
 	float rpm;
@@ -337,6 +362,8 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 
 void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &status )
 {
+	int ch1_op_mode;
+	int ch2_op_mode;
 	int driver_voltage;
 	int main_battery_voltage;
 	int dsub_5v_connector_voltage;
@@ -355,6 +382,14 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 
 	if( running )
 	{
+		result = dev.GetValue( _MMOD, 1, ch1_op_mode );
+		if( !checkResult( result ) )
+			errors = true;
+
+		result = dev.GetValue( _MMOD, 2, ch2_op_mode );
+		if( !checkResult( result ) )
+			errors = true;
+
 		result = dev.GetValue( _VOLTS, 1, driver_voltage );
 		if( !checkResult( result ) )
 			errors = true;
@@ -408,6 +443,8 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		else
 			status.summary( diagnostic_msgs::DiagnosticStatus::ERROR, "Failed while reading diagnostics" );
 
+		status.add( "Channel 1 Operating Mode", operatingModeToStr( OperatingMode( ch1_op_mode ) ) );
+		status.add( "Channel 2 Operating Mode", operatingModeToStr( OperatingMode( ch2_op_mode ) ) );
 		status.add( "Main battery voltage", ( double )main_battery_voltage / 10.0 );
 		status.add( "Internal voltage", ( double )driver_voltage / 10.0 );
 		status.add( "5V DSub connector voltage", ( double )dsub_5v_connector_voltage / 1000.0 );
@@ -427,6 +464,7 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		status.add( "Sepex excitation fault", ( bool )( fault_flag & 32 ) );
 		status.add( "EEPROM fault", ( bool )( fault_flag & 64 ) );
 		status.add( "Configuration fault", ( bool )( fault_flag & 128 ) );
+		status.add( "Error Count", error_count );
 	}
 	else
 		status.summary( diagnostic_msgs::DiagnosticStatus::OK, "RoboteQ NxtGen is stopped" );
@@ -459,6 +497,119 @@ void NxtGenDriver::dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenCon
 	// Channel 2 command linearity
 	result = dev.SetConfig( _CLIN, 2, config.command_linearity );
 	checkResult( result );
+}
+
+bool NxtGenDriver::resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res )
+{
+	int result;
+	bool reload_op_mode = false;
+	int prev_op_mode = operating_mode;
+
+	ROS_INFO( "Resetting encoder count..." );
+
+	// It's only safe to reset the encoder count in open-loop mode.
+	// Otherwise, the controller may see a huge jump in the encoder count
+	// and think the wheels are moving, with the result of it applying
+	// power to the motors (which we don't want it to do).
+	if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+	{
+		ROS_INFO( "Temporarily setting controller into open-loop speed mode." );
+
+		// Set encoder 1 to open-loop mode
+		result = dev.SetConfig( _MMOD, 1, OperatingModes::OPEN_LOOP_SPEED );
+		if( !checkResult( result ) )
+			return false;
+
+		// Set encoder 2 to open-loop mode
+		result = dev.SetConfig( _MMOD, 2, OperatingModes::OPEN_LOOP_SPEED );
+		if( !checkResult( result ) )
+			return false;
+
+		ROS_INFO( "Verifing controller is in open-loop speed mode." );
+
+		result = dev.GetConfig( _MMOD, 1, operating_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		// Verify channel 1 is in open-loop speed mode
+		if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+		{
+			ROS_ERROR( "Failed to set Channel 1 to open-loop speed mode." );
+			error_count++;
+			return false;
+		}
+
+		result = dev.GetConfig( _MMOD, 2, operating_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		// Verify channel 2 is in open-loop speed mode
+		if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+                {
+                        ROS_ERROR( "Failed to set Channel 2 to open-loop speed mode." );
+                        error_count++;
+                        return false;
+                }
+
+		reload_op_mode = true;
+	}
+
+	// Reset encoder 1
+	result = dev.SetCommand( _HOME, 1 );
+	if( !checkResult( result ) )
+		return false;
+
+	// Reset encoder 2
+	result = dev.SetCommand( _HOME, 2 );
+	if( !checkResult( result ) )
+		return false;
+
+	ROS_INFO( "Successfully reset the encoders." );
+
+	if( reload_op_mode )
+	{
+		ROS_INFO( "Setting controller back to previous operating mode." );
+
+		// Set encoder 1 to previous operating mode
+		result = dev.SetConfig( _MMOD, 1, prev_op_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		// Set encoder 2 to previous operating mode
+		result = dev.SetConfig( _MMOD, 2, prev_op_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		ROS_INFO( "Verifing controller is in the correct operating mode." );
+
+		result = dev.GetConfig( _MMOD, 1, operating_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		// Verify channel 1 is in the correct mode
+		if( operating_mode != prev_op_mode )
+		{
+			ROS_ERROR( "Failed to reload Channel 1's operating mode." );
+			error_count++;
+			return false;
+		}
+
+		result = dev.GetConfig( _MMOD, 2, operating_mode );
+		if( !checkResult( result ) )
+			return false;
+
+		// Verify channel 2 is in the correct mode
+		if( operating_mode != prev_op_mode )
+		{
+			ROS_ERROR( "Failed to reload Channel 2's operating mode" );
+			error_count++;
+			return false;
+		}
+
+		ROS_INFO( "The previous operating mode has been successfully reloaded." );
+	}
+
+	return true;
 }
 
 bool NxtGenDriver::checkResult( int result )
@@ -516,6 +667,10 @@ bool NxtGenDriver::checkResult( int result )
 			ROS_ERROR( "The item index is out of range" );
 			break;
 
+		case RQ_SET_CONFIG_FAILED: // 13
+			ROS_ERROR( "Failed to set device configuration" );
+			break;
+
 		case RQ_GET_CONFIG_FAILED: // 14
 			ROS_ERROR( "Failed to get device configuration" );
 			break;
@@ -532,6 +687,8 @@ bool NxtGenDriver::checkResult( int result )
 			ROS_ERROR( "An unknown error code was returned" );
 			break;
 	}
+
+	error_count++;
 
 	return false;
 }

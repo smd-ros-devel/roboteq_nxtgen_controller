@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/JointState.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <std_srvs/Empty.h>
 #include <diagnostic_msgs/DiagnosticStatus.h>
 #include <diagnostic_updater/diagnostic_updater.h>
 #include <dynamic_reconfigure/server.h>
@@ -29,8 +30,6 @@ namespace OperatingModes
 }
 typedef OperatingModes::OperatingMode OperatingMode;
 
-
-
 class NxtGenDriver
 {
 	public:
@@ -46,11 +45,13 @@ class NxtGenDriver
                 bool getEncoderCountRel( int &enc1, int &enc2 );
                 bool getMotorRPM( int &ch1, int &ch2 );
 		void publishJointStates( );
+		static std::string operatingModeToStr( OperatingMode op_mode );
 
 	private:
 		void jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg );
 		void deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &status );
 		void dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenConfig &config, uint32_t level );
+		bool resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res );
 
 		bool checkResult( int result );
 
@@ -59,6 +60,7 @@ class NxtGenDriver
 		ros::NodeHandle nh;
 		ros::Subscriber joint_traj_sub;
 		ros::Publisher joint_state_pub;
+		ros::ServiceServer reset_enc_srv;
 
 		diagnostic_updater::Updater updater;
 
@@ -69,6 +71,7 @@ class NxtGenDriver
 
 		bool invert;
 		bool enable_watchdog;
+		double watchdog_timeout; // timeout in seconds
 		bool use_encoders;
 		int encoder_type; // 0 = hall sensor; not 0 = optical
 		int encoder_ppr;
@@ -77,6 +80,7 @@ class NxtGenDriver
 		int ch2_max_motor_rpm;
 
 		bool running;
+		int error_count;
 
 		// Joints state publishing info
 		bool publish_joint_states;
