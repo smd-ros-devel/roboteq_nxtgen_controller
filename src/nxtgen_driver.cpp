@@ -15,6 +15,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 	nh_priv.param<std::string>( "hardware_id", hardware_id, "RoboteQ NxtGen" );
 	nh_priv.param<std::string>( "port", port, "/dev/ttyUSB0" );
 	nh_priv.param<bool>( "invert", invert, false );
+	nh_priv.param<bool>( "enable_watchdog", enable_watchdog, true );
 	nh_priv.param<bool>( "use_encoders", use_encoders, false );
 	nh_priv.param<int>( "encoder_type", encoder_type, 0 );
 	nh_priv.param<int>( "encoder_ppr", encoder_ppr, 200 );
@@ -105,6 +106,11 @@ bool NxtGenDriver::init( )
 //	if( !checkResult( result ) )
 //		return false;
 
+	// Set RS232 watchdog mode
+	result = dev.SetConfig( _RWD, enable_watchdog ? 1 : 0 );
+	if( !checkResult( result ) )
+		return false;
+
 	// Set encoder 1 usage
 	result = dev.SetConfig( _EMOD, 1, use_encoders ? 17 : 16 );
 	if( !checkResult( result ) )
@@ -163,23 +169,14 @@ bool NxtGenDriver::start( )
 		}
 	}
 
-	if( result == RQ_SUCCESS )
-	{
-		ROS_INFO( "Succesfully opened device %s", port.c_str( ) );
-		running = true;
-		return true;
-	}
+	if( !checkResult( result ) )
+		return false;
 
-	if( result == RQ_ERR_OPEN_PORT )
-		ROS_ERROR( "Unable to open device on port %s", port.c_str( ) );
-	else if( result == RQ_UNRECOGNIZED_DEVICE )
-		ROS_ERROR( "The device on port %s was not recognized", port.c_str( ) );
-	else if( result == RQ_UNRECOGNIZED_VERSION )
-		ROS_ERROR( "Invalid device version" );
-	else
-		ROS_ERROR( "An unknown error occured while attempting to connect to device on port %s", port.c_str( ) );
+	ROS_INFO( "Succesfully opened device %s", port.c_str( ) );
 
-	return false;
+	running = true;
+
+	return true;
 }
 
 void NxtGenDriver::stop( )
@@ -270,8 +267,6 @@ bool NxtGenDriver::getMotorRPM( int &ch1, int &ch2 )
 
 void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg )
 {
-	ROS_DEBUG( "Joint trajectory message received" );
-
 	float rpm;
 	int result;
 
@@ -290,8 +285,6 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 			}
 
 			if( invert ) rpm *= -1;
-
-			ROS_DEBUG( "rpm: %f", rpm );
 
 			// Round rpm value and send to channel 1
 			result = dev.SetCommand( _GO, 1, ( int )( rpm + 0.5 ) );
@@ -460,6 +453,10 @@ bool NxtGenDriver::checkResult( int result )
 		case RQ_SUCCESS: // 0
 			return true;
 
+		case RQ_ERR_OPEN_PORT: // 1
+			ROS_ERROR( "An error occured while attempting to open the port" );
+			break;
+
 		case RQ_ERR_NOT_CONNECTED: // 2
 			ROS_ERROR( "The device is not connected" );
 			break;
@@ -477,7 +474,15 @@ bool NxtGenDriver::checkResult( int result )
 			break;
 
 		case RQ_INVALID_RESPONSE: // 6
-			ROS_ERROR( "Invalid response to the issued command." );
+			ROS_ERROR( "Invalid response to the issued command" );
+			break;
+
+		case RQ_UNRECOGNIZED_DEVICE: // 7
+			ROS_ERROR( "The device was not recognized" );
+			break;
+
+		case RQ_UNRECOGNIZED_VERSION: // 8
+			ROS_ERROR( "Invalid device version" );
 			break;
 
 		case RQ_INVALID_CONFIG_ITEM: // 9

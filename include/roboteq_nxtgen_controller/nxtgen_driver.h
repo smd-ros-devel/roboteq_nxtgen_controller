@@ -67,6 +67,7 @@ class NxtGenDriver
 		std::string ch2_joint_name;
 
 		bool invert;
+		bool enable_watchdog;
 		bool use_encoders;
 		int encoder_type; // 0 = hall sensor; not 0 = optical
 		int encoder_ppr;
