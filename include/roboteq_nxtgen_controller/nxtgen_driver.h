@@ -18,12 +18,16 @@
 namespace nxtgen_driver
 {
 
-enum operating_modes
+namespace OperatingModes
 {
-	OPEN_LOOP_SPEED = 1,
-	CLOSED_LOOP_SPEED = 2,
-	CLOSED_LOOP_POSITION = 3
-};
+	enum OperatingMode
+	{
+		OPEN_LOOP_SPEED = 1,
+		CLOSED_LOOP_SPEED = 2,
+		CLOSED_LOOP_POSITION = 3
+	};
+}
+typedef OperatingModes::OperatingMode OperatingMode;
 
 class NxtGenDriver
 {

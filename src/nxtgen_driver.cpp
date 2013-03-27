@@ -21,9 +21,10 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	nh_priv.param<int>( "operating_mode", operating_mode, 1 );
 
-	if( operating_mode < OPEN_LOOP_SPEED || operating_mode > CLOSED_LOOP_POSITION )
+	if( operating_mode < OperatingModes::OPEN_LOOP_SPEED || operating_mode > OperatingModes::CLOSED_LOOP_POSITION )
 	{
-		ROS_WARN( "Invalid operating mode [%d]. Operating mode must be 1 (open-loop speed), 2 (closed-loop speed), or 3 (closed-loop) position -- defaulting to 1.", operating_mode );
+		ROS_WARN( "Invalid operating mode [%d].", operating_mode );
+		ROS_WARN( "Operating mode must be 1 (open-loop speed), 2 (closed-loop speed), or 3 (closed-loop position) -- defaulting to 1." );
 		operating_mode = 1;
 	}
 
@@ -278,7 +279,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 	{
 		if( msg->joint_names[i] == ch1_joint_name )
 		{
-			if( operating_mode == OPEN_LOOP_SPEED )
+			if( operating_mode == OperatingModes::OPEN_LOOP_SPEED )
 				rpm = 1000 * msg->points[0].velocities[i];
 			else
 			{
@@ -302,7 +303,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 		}
 		else if( msg->joint_names[i] == ch2_joint_name )
 		{
-			if( operating_mode == OPEN_LOOP_SPEED )
+			if( operating_mode == OperatingModes::OPEN_LOOP_SPEED )
 				rpm = 1000 * msg->points[0].velocities[i];
 			else
 			{
