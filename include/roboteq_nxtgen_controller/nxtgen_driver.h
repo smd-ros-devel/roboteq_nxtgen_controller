@@ -29,6 +29,8 @@ namespace OperatingModes
 }
 typedef OperatingModes::OperatingMode OperatingMode;
 
+
+
 class NxtGenDriver
 {
 	public:
@@ -40,14 +42,13 @@ class NxtGenDriver
 		void stop( );
 		void update( );
 
-	private:
-		//bool getEncoderCountAbs( int &enc1, int &enc2 );
-		//bool getEncoderCountRel( int &enc1, int &enc2 );
-		bool getEncoderCount( int &enc1, int &enc2 );
-		bool getMotorRPM( int &ch1, int &ch2 );
-
-		void jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg );
+		bool getEncoderCountAbs( int &enc1, int &enc2 );
+                bool getEncoderCountRel( int &enc1, int &enc2 );
+                bool getMotorRPM( int &ch1, int &ch2 );
 		void publishJointStates( );
+
+	private:
+		void jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg );
 		void deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &status );
 		void dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenConfig &config, uint32_t level );
 

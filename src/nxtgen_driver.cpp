@@ -205,7 +205,7 @@ void NxtGenDriver::publishJointStates( )
 		int ch1_pos, ch2_pos;
 		int ch1_vel, ch2_vel;
 
-		if( getMotorRPM( ch1_vel, ch2_vel ) && getEncoderCount( ch1_pos, ch2_pos ) )
+		if( getMotorRPM( ch1_vel, ch2_vel ) && getEncoderCountAbs( ch1_pos, ch2_pos ) )
 		{
 			if( invert )
 			{
@@ -235,7 +235,7 @@ void NxtGenDriver::publishJointStates( )
 	}
 }
 
-bool NxtGenDriver::getEncoderCount( int &enc1, int &enc2 )
+bool NxtGenDriver::getEncoderCountAbs( int &enc1, int &enc2 )
 {
 	int result;
 
@@ -244,6 +244,21 @@ bool NxtGenDriver::getEncoderCount( int &enc1, int &enc2 )
 		return false;
 
 	result = dev.GetValue( _ABCNTR, 2, enc2 );
+	if( !checkResult( result ) )
+		return false;
+
+	return true;
+}
+
+bool NxtGenDriver::getEncoderCountRel( int &enc1, int &enc2 )
+{
+	int result;
+
+	result = dev.GetValue( _RELCNTR, 1, enc1 );
+	if( !checkResult( result ) )
+		return false;
+
+	result = dev.GetValue( _RELCNTR, 2, enc2 );
 	if( !checkResult( result ) )
 		return false;
 
