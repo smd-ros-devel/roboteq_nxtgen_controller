@@ -11,6 +11,7 @@
 #include <roboteq_nxtgen_controller/RoboteqNxtGenConfig.h>
 
 #include <string>
+#include <vector>
 
 #include "api_linux/Linux/RoboteqDevice.h"
 #include "api_linux/Linux/ErrorCodes.h"
@@ -30,8 +31,20 @@ namespace OperatingModes
 }
 typedef OperatingModes::OperatingMode OperatingMode;
 
+namespace DigitalActionLevels
+{
+	// Indicates whether a digital input or output is active high or active low
+	enum DigitalActionLevel
+	{
+		ActiveHigh,
+		ActiveLow
+	};
+}
+typedef DigitalActionLevels::DigitalActionLevel DigitalActionLevel;
+
 namespace DigitalInputActions
 {
+	// Possible actions for digital inputs
 	enum DigitalInputAction
 	{
 		NoAction,
@@ -49,6 +62,7 @@ typedef DigitalInputActions::DigitalInputAction DigitalInputAction;
 
 namespace DigitalOutputActions
 {
+	// Possible actions for digital outputs
 	enum DigitalOutputAction
 	{
 		NoAction,
@@ -61,6 +75,28 @@ namespace DigitalOutputActions
 	};
 }
 typedef DigitalOutputActions::DigitalOutputAction DigitalOutputAction;
+
+struct DigitalInputConfig
+{
+	// Action for each digital input. Index 0 represents DIN1, index 1 represents DIN2, etc.
+	// The size of the vector will indicate how many digital inputs the controller supports.
+	std::vector<DigitalInputAction> inputs;
+
+	// Level at which each digital input activates. The vector will be the same size as the
+	// inputs array, and the indexes are also equivalent to the inputs array.
+	std::vector<DigitalActionLevel> levels;
+};
+
+struct DigitalOutputConfig
+{
+	// Action for each digital output. Index 0 represents DOUT1, index 1 represents DOUT2, etc.
+	// The size of the vector will indicate how many digital outputs the controller supports.
+	std::vector<DigitalOutputAction> outputs;
+
+	// Level the output will switch to when the digital output triggers. The size of the vector
+	// and the indexes are equivalent to the outputs array.
+	std::vector<DigitalActionLevel> levels;
+};
 
 class NxtGenDriver
 {
