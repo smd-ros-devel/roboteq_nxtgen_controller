@@ -35,7 +35,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	nh_priv.param<int>( "operating_mode", operating_mode, 1 );
 
-	if( operating_mode < OperatingModes::OPEN_LOOP_SPEED || operating_mode > OperatingModes::CLOSED_LOOP_POSITION )
+	if( operating_mode < OperatingModes::OpenLoopSpeed || operating_mode > OperatingModes::ClosedLoopPosition )
 	{
 		ROS_WARN( "Invalid operating mode [%d].", operating_mode );
 		ROS_WARN( "Operating mode must be 1 (open-loop speed), 2 (closed-loop speed), or 3 (closed-loop position) -- defaulting to 1." );
@@ -298,9 +298,41 @@ std::string NxtGenDriver::operatingModeToStr( OperatingMode op_mode )
 {
 	switch( op_mode )
 	{
-		case OperatingModes::OPEN_LOOP_SPEED: 		return "Open Loop Speed";
-		case OperatingModes::CLOSED_LOOP_SPEED:		return "Closed Loop Speed";
-		case OperatingModes::CLOSED_LOOP_POSITION: 	return "Closed Loop Position";
+		case OperatingModes::OpenLoopSpeed: 		return "Open Loop Speed";
+		case OperatingModes::ClosedLoopSpeed:		return "Closed Loop Speed";
+		case OperatingModes::ClosedLoopPosition: 	return "Closed Loop Position";
+		default:					return "Unknown";
+	}
+}
+
+std::string NxtGenDriver::digitalInputActionToStr( DigitalInputAction action )
+{
+	switch( action )
+	{
+		case DigitalInputActions::NoAction:		return "No action";
+		case DigitalInputActions::SafetyStop:		return "Safety stop";
+		case DigitalInputActions::EmergencyStop:	return "Emergency stop";
+		case DigitalInputActions::MotorStop:		return "Motor stop";
+		case DigitalInputActions::ForwardLimitSwitch:	return "Forward limit switch";
+		case DigitalInputActions::ReverseLimitSwitch:	return "Reverse limit switch";
+		case DigitalInputActions::InvertDirection:	return "Invert direction";
+		case DigitalInputActions::RunMicroBasicScript:	return "Run MicroBasic script";
+		case DigitalInputActions::LoadHomeCounterValue:	return "Load counter with home value";
+		default:					return "Unknown";
+	}
+}
+
+std::string NxtGenDriver::digitalOutputActionToStr( DigitalOutputAction action )
+{
+	switch( action )
+	{
+		case DigitalOutputActions::NoAction:		return "No action";
+		case DigitalOutputActions::WhenMotorOn:		return "When motor on";
+		case DigitalOutputActions::MotorReversed:	return "Motor reversed";
+		case DigitalOutputActions::Overvoltage:		return "Overvoltage";
+		case DigitalOutputActions::Overtemperature:	return "Overtemperature";
+		case DigitalOutputActions::MirrorStatusLED:	return "Mirror status LED";
+		case DigitalOutputActions::NoMOSFETFailure:	return "No MOSFET failure";
 		default:					return "Unknown";
 	}
 }
@@ -314,7 +346,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 	{
 		if( msg->joint_names[i] == ch1_joint_name )
 		{
-			if( operating_mode == OperatingModes::OPEN_LOOP_SPEED )
+			if( operating_mode == OperatingModes::OpenLoopSpeed )
 				rpm = 1000 * msg->points[0].velocities[i];
 			else
 			{
@@ -336,7 +368,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 		}
 		else if( msg->joint_names[i] == ch2_joint_name )
 		{
-			if( operating_mode == OperatingModes::OPEN_LOOP_SPEED )
+			if( operating_mode == OperatingModes::OpenLoopSpeed )
 				rpm = 1000 * msg->points[0].velocities[i];
 			else
 			{
@@ -511,17 +543,17 @@ bool NxtGenDriver::resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::E
 	// Otherwise, the controller may see a huge jump in the encoder count
 	// and think the wheels are moving, with the result of it applying
 	// power to the motors (which we don't want it to do).
-	if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+	if( operating_mode != OperatingModes::OpenLoopSpeed )
 	{
 		ROS_INFO( "Temporarily setting controller into open-loop speed mode." );
 
 		// Set encoder 1 to open-loop mode
-		result = dev.SetConfig( _MMOD, 1, OperatingModes::OPEN_LOOP_SPEED );
+		result = dev.SetConfig( _MMOD, 1, OperatingModes::OpenLoopSpeed );
 		if( !checkResult( result ) )
 			return false;
 
 		// Set encoder 2 to open-loop mode
-		result = dev.SetConfig( _MMOD, 2, OperatingModes::OPEN_LOOP_SPEED );
+		result = dev.SetConfig( _MMOD, 2, OperatingModes::OpenLoopSpeed );
 		if( !checkResult( result ) )
 			return false;
 
@@ -532,7 +564,7 @@ bool NxtGenDriver::resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::E
 			return false;
 
 		// Verify channel 1 is in open-loop speed mode
-		if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+		if( operating_mode != OperatingModes::OpenLoopSpeed )
 		{
 			ROS_ERROR( "Failed to set Channel 1 to open-loop speed mode." );
 			error_count++;
@@ -544,7 +576,7 @@ bool NxtGenDriver::resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::E
 			return false;
 
 		// Verify channel 2 is in open-loop speed mode
-		if( operating_mode != OperatingModes::OPEN_LOOP_SPEED )
+		if( operating_mode != OperatingModes::OpenLoopSpeed )
                 {
                         ROS_ERROR( "Failed to set Channel 2 to open-loop speed mode." );
                         error_count++;

@@ -23,12 +23,44 @@ namespace OperatingModes
 {
 	enum OperatingMode
 	{
-		OPEN_LOOP_SPEED = 1,
-		CLOSED_LOOP_SPEED = 2,
-		CLOSED_LOOP_POSITION = 3
+		OpenLoopSpeed = 1,
+		ClosedLoopSpeed = 2,
+		ClosedLoopPosition = 3
 	};
 }
 typedef OperatingModes::OperatingMode OperatingMode;
+
+namespace DigitalInputActions
+{
+	enum DigitalInputAction
+	{
+		NoAction,
+		SafetyStop,
+		EmergencyStop,
+		MotorStop,
+		ForwardLimitSwitch,
+		ReverseLimitSwitch,
+		InvertDirection,
+		RunMicroBasicScript,
+		LoadHomeCounterValue
+	};
+}
+typedef DigitalInputActions::DigitalInputAction DigitalInputAction;
+
+namespace DigitalOutputActions
+{
+	enum DigitalOutputAction
+	{
+		NoAction,
+		WhenMotorOn,
+		MotorReversed,
+		Overvoltage,
+		Overtemperature,
+		MirrorStatusLED,
+		NoMOSFETFailure
+	};
+}
+typedef DigitalOutputActions::DigitalOutputAction DigitalOutputAction;
 
 class NxtGenDriver
 {
@@ -46,6 +78,8 @@ class NxtGenDriver
                 bool getMotorRPM( int &ch1, int &ch2 );
 		void publishJointStates( );
 		static std::string operatingModeToStr( OperatingMode op_mode );
+		static std::string digitalInputActionToStr( DigitalInputAction action );
+		static std::string digitalOutputActionToStr( DigitalOutputAction action );
 
 	private:
 		void jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg );
