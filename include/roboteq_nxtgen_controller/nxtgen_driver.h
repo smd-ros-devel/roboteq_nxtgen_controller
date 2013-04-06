@@ -85,6 +85,11 @@ struct DigitalInputConfig
 	// Level at which each digital input activates. The vector will be the same size as the
 	// inputs array, and the indexes are also equivalent to the inputs array.
 	std::vector<DigitalActionLevel> levels;
+
+	// Motor channels to which the actions apply to. The vectors will be the same size as
+	// the inputs and levels vectors, with indexes representing the digital input.
+	std::vector<bool> motor1;
+	std::vector<bool> motor2;
 };
 
 struct DigitalOutputConfig
@@ -96,6 +101,11 @@ struct DigitalOutputConfig
 	// Level the output will switch to when the digital output triggers. The size of the vector
 	// and the indexes are equivalent to the outputs array.
 	std::vector<DigitalActionLevel> levels;
+
+	// Motor channels to which the actions apply to. The vectors will be the same size as
+	// the inputs and levels vectors, with indexes representing the digital input.
+	std::vector<bool> motor1;
+	std::vector<bool> motor2;
 };
 
 class NxtGenDriver
@@ -109,6 +119,8 @@ class NxtGenDriver
 		void stop( );
 		void update( );
 
+		bool getDigitalInputConfig( DigitalInputConfig &config );
+		bool getDigitalOutputConfig( DigitalOutputConfig &config );
 		bool getEncoderCountAbs( int &enc1, int &enc2 );
                 bool getEncoderCountRel( int &enc1, int &enc2 );
                 bool getMotorRPM( int &ch1, int &ch2 );

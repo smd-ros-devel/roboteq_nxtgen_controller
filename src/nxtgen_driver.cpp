@@ -249,6 +249,82 @@ void NxtGenDriver::publishJointStates( )
 	}
 }
 
+bool NxtGenDriver::getDigitalInputConfig( DigitalInputConfig &config )
+{
+	int action;
+	int level;
+	int result;
+	int res_amount = 8;
+
+	/// \todo Find a way to get the controller's model
+
+	//if( model == HDC2450 ) // The HDC2450 has 20 digital inputs
+		res_amount = 20;
+
+	config.inputs.reserve( res_amount );
+	config.levels.reserve( res_amount );
+	config.motor1.reserve( res_amount );
+	config.motor2.reserve( res_amount );
+
+	for( int i = 0; i < res_amount; i++ )
+	{
+		// Get action for digital input i
+		result = dev.GetConfig( _DINA, i + 1, action );
+		if( !checkResult( result ) )
+			return false;
+
+		// Get active level
+		result = dev.GetConfig( _DINL, i + 1, level );
+		if( !checkResult( result ) )
+			return false;
+
+		config.inputs.push_back( DigitalInputAction( action & 15 ) ); // Only first four bits are the action
+		config.levels.push_back( DigitalActionLevel( level ) );
+		config.motor1.push_back( bool( action & 32 ) ); // bit 5 gives motor 1
+		config.motor2.push_back( bool( action & 64 ) ); // bit 6 gives motor 2
+	}
+
+	return true;
+}
+
+bool NxtGenDriver::getDigitalOutputConfig( DigitalOutputConfig &config )
+{
+	int action;
+	int level;
+	int result;
+	int res_amount = 2;
+
+	/// \todo Find a way to get the controller's model
+
+	//if( model == HDC2450 ) // The HDC2450 has 8 digital outputs
+		res_amount = 8;
+
+	config.outputs.reserve( res_amount );
+	config.levels.reserve( res_amount );
+	config.motor1.reserve( res_amount );
+	config.motor2.reserve( res_amount );
+
+	for( int i = 0; i < res_amount; i++ )
+	{
+		// Get action for digital output i
+		result = dev.GetConfig( _DOA, i + 1, action );
+		if( !checkResult( result ) )
+			return false;
+
+		// Get active level
+		result = dev.GetConfig( _DOL, i + 1, level );
+		if( !checkResult( result ) )
+			return false;
+
+		config.outputs.push_back( DigitalOutputAction( action & 7 ) ); // First 3 bits give the action
+		config.levels.push_back( DigitalActionLevel( level ) );
+		config.motor1.push_back( bool( action & 16 ) ); // bit 4 gives motor 1
+		config.motor2.push_back( bool( action & 32 ) ); // bit 5 gives motor 2
+	}
+
+	return true;
+}
+
 bool NxtGenDriver::getEncoderCountAbs( int &enc1, int &enc2 )
 {
 	int result;
