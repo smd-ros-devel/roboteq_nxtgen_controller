@@ -35,10 +35,12 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	nh_priv.param<int>( "operating_mode", operating_mode, 1 );
 
-	if( operating_mode < OperatingModes::OpenLoopSpeed || operating_mode > OperatingModes::ClosedLoopPosition )
+	if( operating_mode != OperatingModes::OpenLoopSpeed &&
+		operating_mode != OperatingModes::ClosedLoopSpeed &&
+		operating_mode != OperatingModes::ClosedLoopPosition )
 	{
 		ROS_WARN( "Invalid operating mode [%d].", operating_mode );
-		ROS_WARN( "Operating mode must be 1 (open-loop speed), 2 (closed-loop speed), or 3 (closed-loop position) -- defaulting to 1." );
+		ROS_WARN( "Operating mode must be 1 (open-loop speed), 0 (closed-loop speed), or 3 (closed-loop position) -- defaulting to 1." );
 		operating_mode = 1;
 	}
 
@@ -109,13 +111,13 @@ bool NxtGenDriver::init( )
 	int result;
 
 	// Set channel 1 operating mode, 1 = open-looped speed,
-	// 2 = closed-loop speed, 3 = closed-loop position
+	// 0 = closed-loop speed, 3 = closed-loop position
 //	result = dev.SetConfig( _MMOD, 1, operating_mode );
 //	if( !checkResult( result ) )
 //		return false;
 
 	// Set channel 2 operating mode, 1 = open-looped speed,
-	// 2 = closed-loop speed, 3 = closed-loop position
+	// 0 = closed-loop speed, 3 = closed-loop position
 //	result = dev.SetConfig( _MMOD, 2, operating_mode );
 //	if( !checkResult( result ) )
 //		return false;
@@ -551,8 +553,11 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		else
 			status.summary( diagnostic_msgs::DiagnosticStatus::ERROR, "Failed while reading diagnostics" );
 
-		status.add( "Channel 1 Operating Mode", operatingModeToStr( OperatingMode( ch1_op_mode ) ) );
-		status.add( "Channel 2 Operating Mode", operatingModeToStr( OperatingMode( ch2_op_mode ) ) );
+		
+		//status.add( "Channel 1 Operating Mode", operatingModeToStr( OperatingMode( ch1_op_mode ) ) );
+		status.addf( "Channel 1 Operating Mode", "%s (%d)", operatingModeToStr( OperatingMode( ch1_op_mode ) ).c_str( ), ch1_op_mode );
+		//status.add( "Channel 2 Operating Mode", operatingModeToStr( OperatingMode( ch2_op_mode ) ) );
+		status.addf( "Channel 2 Operating Mode", "%s (%d)", operatingModeToStr( OperatingMode( ch2_op_mode ) ).c_str( ), ch2_op_mode );
 		status.add( "Main battery voltage", ( double )main_battery_voltage / 10.0 );
 		status.add( "Internal voltage", ( double )driver_voltage / 10.0 );
 		status.add( "5V DSub connector voltage", ( double )dsub_5v_connector_voltage / 1000.0 );

@@ -24,8 +24,9 @@ namespace OperatingModes
 {
 	enum OperatingMode
 	{
+		ClosedLoopSpeed = 0, // User manual reports that closed loop speed mode is 2, but through testing I've determined it to be 0.
 		OpenLoopSpeed = 1,
-		ClosedLoopSpeed = 2,
+		//ClosedLoopSpeed = 2,
 		ClosedLoopPosition = 3
 	};
 }
