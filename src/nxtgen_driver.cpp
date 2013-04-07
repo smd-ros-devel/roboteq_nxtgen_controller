@@ -61,7 +61,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	joint_traj_sub = nh.subscribe( "cmd_joint_traj", 1, &NxtGenDriver::jointTrajCallback, this );
 	joint_state_pub = nh.advertise<sensor_msgs::JointState>( "joint_states", 1 );
-	reset_enc_srv = nh.advertiseService( "reset_encoder_count", &NxtGenDriver::resetEncoderCount, this );
+	reset_enc_srv = nh_priv.advertiseService( "reset_encoder_count", &NxtGenDriver::resetEncoderCount, this );
 
 	updater.setHardwareID( hardware_id );
 	updater.add( hardware_id + " Status", this, &NxtGenDriver::deviceStatus );
@@ -259,7 +259,7 @@ bool NxtGenDriver::getDigitalInputConfig( DigitalInputConfig &config )
 	/// \todo Find a way to get the controller's model
 
 	//if( model == HDC2450 ) // The HDC2450 has 20 digital inputs
-		res_amount = 20;
+	//	res_amount = 20;
 
 	config.inputs.reserve( res_amount );
 	config.levels.reserve( res_amount );
@@ -297,7 +297,7 @@ bool NxtGenDriver::getDigitalOutputConfig( DigitalOutputConfig &config )
 	/// \todo Find a way to get the controller's model
 
 	//if( model == HDC2450 ) // The HDC2450 has 8 digital outputs
-		res_amount = 8;
+	//	res_amount = 8;
 
 	config.outputs.reserve( res_amount );
 	config.levels.reserve( res_amount );
