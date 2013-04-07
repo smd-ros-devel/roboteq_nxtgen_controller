@@ -1,6 +1,7 @@
 #include "roboteq_nxtgen_controller/nxtgen_driver.h"
 
 #include <cmath>
+#include <sstream>
 
 namespace nxtgen_driver
 {
@@ -272,6 +273,8 @@ bool NxtGenDriver::getDigitalInputConfig( DigitalInputConfig &config )
 	//if( model == HDC2450 ) // The HDC2450 has 20 digital inputs
 	//	res_amount = 20;
 
+	res_amount = 6;
+
 	config.inputs.reserve( res_amount );
 	config.levels.reserve( res_amount );
 	config.motor1.reserve( res_amount );
@@ -389,6 +392,16 @@ std::string NxtGenDriver::operatingModeToStr( OperatingMode op_mode )
 		case OperatingModes::ClosedLoopSpeed:		return "Closed Loop Speed";
 		case OperatingModes::ClosedLoopPosition: 	return "Closed Loop Position";
 		default:					return "Unknown";
+	}
+}
+
+std::string NxtGenDriver::digitalActionLevelToStr( DigitalActionLevel level )
+{
+	switch( level )
+	{
+		case DigitalActionLevels::ActiveHigh:	return "Active high";
+		case DigitalActionLevels::ActiveLow:	return "Active low";
+		default:				return "Unknown";
 	}
 }
 
@@ -538,6 +551,8 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 				rpm = 1000.0 * rpm / ( float )ch1_max_motor_rpm;
 			}
 
+			/// \todo Support closed-loop position mode
+
 			if( invert ) rpm *= -1;
 
 			// Round rpm value and send to channel 1
@@ -559,6 +574,8 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 				// Calculate rpm percentage for closed loop mode
 							rpm = 1000.0 * rpm / ( float )ch2_max_motor_rpm;
 			}
+
+			/// \todo Support closed-loop position mode
 
 			if( invert ) rpm *= -1;
 
@@ -590,9 +607,12 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 	int motor1_power_output;
 	int motor2_power_output;
 	int fault_flag;
+	DigitalInputConfig din_config;
+	DigitalOutputConfig dout_config;
 
 	int result;
 	bool errors = false;
+	stringstream ss;
 
 	if( running )
 	{
@@ -652,15 +672,25 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		if( !checkResult( result ) )
 			errors = true;
 
+		if( !getDigitalInputConfig( din_config ) )
+		{
+			ROS_DEBUG( "Failed getting digital input configuration" );
+			errors = true;
+		}
+
+		if( !getDigitalOutputConfig( dout_config ) )
+		{
+			ROS_DEBUG( "Failed getting digital output configuration" );
+			errors = true;
+		}
+
 		if( !errors )
 			status.summary( diagnostic_msgs::DiagnosticStatus::OK, hardware_id + " is running" );
 		else
 			status.summary( diagnostic_msgs::DiagnosticStatus::ERROR, "Failed while reading diagnostics" );
 
 		
-		//status.add( "Channel 1 Operating Mode", operatingModeToStr( OperatingMode( ch1_op_mode ) ) );
 		status.addf( "Channel 1 Operating Mode", "%s (%d)", operatingModeToStr( OperatingMode( ch1_op_mode ) ).c_str( ), ch1_op_mode );
-		//status.add( "Channel 2 Operating Mode", operatingModeToStr( OperatingMode( ch2_op_mode ) ) );
 		status.addf( "Channel 2 Operating Mode", "%s (%d)", operatingModeToStr( OperatingMode( ch2_op_mode ) ).c_str( ), ch2_op_mode );
 		status.add( "Main battery voltage", ( double )main_battery_voltage / 10.0 );
 		status.add( "Internal voltage", ( double )driver_voltage / 10.0 );
@@ -682,6 +712,47 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		status.add( "EEPROM fault", ( bool )( fault_flag & 64 ) );
 		status.add( "Configuration fault", ( bool )( fault_flag & 128 ) );
 		status.add( "Error Count", error_count );
+
+		// Append digital input actions
+		for( unsigned int i = 0; i < din_config.inputs.size( ); i++ )
+		{
+			ss << (i + 1);
+
+			//std::string action_key = "Digital Input " + ss.str( ) + " Action";
+			std::string action_value = digitalInputActionToStr( din_config.inputs[i] );
+
+			if( din_config.motor1[i] && din_config.motor2[i] )
+				action_value += " (motor 1 and 2)";
+			else if( din_config.motor1[i] )
+				action_value += " (motor 1)";
+			else if( din_config.motor2[i] )
+				action_value += " (motor 2)";
+
+			status.add( "Digital Input " + ss.str( ) + " Action", action_value );
+			status.add( "Digital Input " + ss.str( ) + " Level", digitalActionLevelToStr( din_config.levels[i] ) );
+
+			ss.str( "" );
+		}
+
+		// Append digital output actions
+		for( unsigned int i = 0; i < dout_config.outputs.size( ); i++ )
+		{
+			ss << (i + 1);
+
+			std::string action_value = digitalOutputActionToStr( dout_config.outputs[i] );
+
+			if( dout_config.motor1[i] && dout_config.motor2[i] )
+				action_value += " (motor 1 and 2)";
+			else if( dout_config.motor1[i] )
+				action_value += " (motor 1)";
+			else if( dout_config.motor2[i] )
+				action_value += " (motor 2)";
+
+			status.add( "Digital Output " + ss.str( ) + " Action", action_value );
+			status.add( "Digital Output " + ss.str( ) + " Level", digitalActionLevelToStr( dout_config.levels[i] ) );
+
+			ss.str( "" );
+		}
 	}
 	else
 		status.summary( diagnostic_msgs::DiagnosticStatus::OK, "RoboteQ NxtGen is stopped" );

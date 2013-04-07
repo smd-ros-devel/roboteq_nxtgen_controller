@@ -127,6 +127,7 @@ class NxtGenDriver
 		bool getMotorRPM( int &ch1, int &ch2 );
 		void publishJointStates( );
 		static std::string operatingModeToStr( OperatingMode op_mode );
+		static std::string digitalActionLevelToStr( DigitalActionLevel level );
 		static std::string digitalInputActionToStr( DigitalInputAction action );
 		static std::string digitalOutputActionToStr( DigitalOutputAction action );
 		bool resetEncoderCount( );
