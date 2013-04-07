@@ -32,16 +32,23 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 	nh_priv.param<bool>( "use_encoders", use_encoders, false );
 	nh_priv.param<int>( "encoder_type", encoder_type, 0 );
 	nh_priv.param<int>( "encoder_ppr", encoder_ppr, 200 );
+	nh_priv.param<bool>( "reset_encoder_count", reset_encoder_count, false );
 
-	nh_priv.param<int>( "operating_mode", operating_mode, 1 );
+	std::string mode;
+	nh_priv.param<std::string>( "operating_mode", mode, "open-loop speed" );
 
-	if( operating_mode != OperatingModes::OpenLoopSpeed &&
-		operating_mode != OperatingModes::ClosedLoopSpeed &&
-		operating_mode != OperatingModes::ClosedLoopPosition )
+	if( mode == "open-loop speed" )
+		operating_mode = OperatingModes::OpenLoopSpeed;
+	else if( mode == "closed-loop speed" )
+		operating_mode = OperatingModes::ClosedLoopSpeed;
+	else if( mode == "closed-loop position" )
+		operating_mode = OperatingModes::ClosedLoopPosition;
+	else
 	{
-		ROS_WARN( "Invalid operating mode [%d].", operating_mode );
-		ROS_WARN( "Operating mode must be 1 (open-loop speed), 0 (closed-loop speed), or 3 (closed-loop position) -- defaulting to 1." );
-		operating_mode = 1;
+		ROS_WARN( "Invalid operating mode [%s]. Valid operating modes are " \
+			"'open-loop speed', 'closed-loop speed', or 'closed-loop position' " \
+			"-- defaulting to 'open-loop speed'", mode.c_str( ) );
+		operating_mode = OperatingModes::OpenLoopSpeed;
 	}
 
 	nh_priv.param<int>( "ch1_max_motor_rpm", ch1_max_motor_rpm, 3000 );
@@ -63,7 +70,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	joint_traj_sub = nh.subscribe( "cmd_joint_traj", 1, &NxtGenDriver::jointTrajCallback, this );
 	joint_state_pub = nh.advertise<sensor_msgs::JointState>( "joint_states", 1 );
-	reset_enc_srv = nh_priv.advertiseService( "reset_encoder_count", &NxtGenDriver::resetEncoderCount, this );
+	reset_enc_srv = nh_priv.advertiseService( "reset_encoder_count", &NxtGenDriver::resetEncoderCallback, this );
 
 	updater.setHardwareID( hardware_id );
 	updater.add( hardware_id + " Status", this, &NxtGenDriver::deviceStatus );
@@ -110,17 +117,15 @@ bool NxtGenDriver::init( )
 {
 	int result;
 
-	// Set channel 1 operating mode, 1 = open-looped speed,
-	// 0 = closed-loop speed, 3 = closed-loop position
-//	result = dev.SetConfig( _MMOD, 1, operating_mode );
-//	if( !checkResult( result ) )
-//		return false;
+	// Set channel 1 operating mode
+	result = dev.SetConfig( _MMOD, 1, operating_mode );
+	if( !checkResult( result ) )
+		return false;
 
-	// Set channel 2 operating mode, 1 = open-looped speed,
-	// 0 = closed-loop speed, 3 = closed-loop position
-//	result = dev.SetConfig( _MMOD, 2, operating_mode );
-//	if( !checkResult( result ) )
-//		return false;
+	// Set channel 2 operating mode
+	result = dev.SetConfig( _MMOD, 2, operating_mode );
+	if( !checkResult( result ) )
+		return false;
 
 	// Set RS232 watchdog timeout (0 means disabled)
 	result = dev.SetConfig( _RWD, enable_watchdog ? ( 1000 * ( int )watchdog_timeout ) : 0 );
@@ -139,6 +144,10 @@ bool NxtGenDriver::init( )
 
 	// Encoder type (0 = hall sensor, any other value = optical encoder)
 	result = dev.SetConfig( _BLFB, ( encoder_type == 0 ) ? 0 : 1 );
+
+	if( reset_encoder_count )
+		if( !resetEncoderCount( ) )
+			return false;
 
 	// Set motor 1 max rpm
 	result = dev.SetConfig( _MXRPM, 1, ch1_max_motor_rpm );
@@ -415,6 +424,101 @@ std::string NxtGenDriver::digitalOutputActionToStr( DigitalOutputAction action )
 	}
 }
 
+bool NxtGenDriver::resetEncoderCount( )
+{
+	int result;
+	bool reload_op_mode = false;
+	OperatingMode prev_op_mode = operating_mode;
+
+	ROS_DEBUG( "Resetting encoder count..." );
+
+	// It's only safe to reset the encoder count in open-loop mode.
+	// Otherwise, the controller may see a huge jump in the encoder count
+	// and think the wheels are moving, with the result of it applying
+	// power to the motors (which we don't want it to do).
+	if( operating_mode != OperatingModes::OpenLoopSpeed )
+	{
+		ROS_DEBUG( "Temporarily setting controller into open-loop speed mode." );
+
+		if( !setOperatingMode( OperatingModes::OpenLoopSpeed ) )
+			return false;
+
+		reload_op_mode = true;
+	}
+
+	// Reset encoder 1
+	result = dev.SetCommand( _HOME, 1 );
+	if( !checkResult( result ) )
+		return false;
+
+	// Reset encoder 2
+	result = dev.SetCommand( _HOME, 2 );
+	if( !checkResult( result ) )
+		return false;
+
+	ROS_DEBUG( "Successfully reset the encoders." );
+
+	if( reload_op_mode )
+	{
+		ROS_DEBUG( "Reloading previous operating mode" );
+
+		if( !setOperatingMode( prev_op_mode ) )
+			return false;
+
+		ROS_DEBUG( "The previous operating mode has been successfully reloaded." );
+	}
+
+	return true;
+}
+
+bool NxtGenDriver::setOperatingMode( OperatingMode mode )
+{
+	int result;
+	const char* mode_str = operatingModeToStr( mode ).c_str( );
+
+	ROS_DEBUG( "Setting operating mode to %s", mode_str );
+
+	// Set channel 1 operating mode
+	result = dev.SetConfig( _MMOD, 1, mode );
+	if( !checkResult( result ) )
+		return false;
+
+	// Set channel 2 operating mode
+	result = dev.SetConfig( _MMOD, 2, mode );
+	if( !checkResult( result ) )
+		return false;
+
+	ROS_DEBUG( "Verifing controller is in %s mode.", mode_str );
+
+	// Get channel 1's operating mode
+	result = dev.GetConfig( _MMOD, 1, *( ( int* )&operating_mode ) );
+	if( !checkResult( result ) )
+		return false;
+
+	// Verify channel 1 is in the correct mode
+	if( operating_mode != mode )
+	{
+		ROS_ERROR( "Failed to set channel 1 to %s mode.", mode_str );
+		error_count++;
+		return false;
+	}
+
+	// Get channel 2's operating mode
+	result = dev.GetConfig( _MMOD, 2, *( ( int* )&operating_mode ) );
+	if( !checkResult( result ) )
+		return false;
+
+	// Verify channel 2 is in open-loop speed mode
+	if( operating_mode != mode )
+	{
+		ROS_ERROR( "Failed to set channel 2 to %s mode.", mode_str );
+		error_count++;
+		return false;
+	}
+
+	return true;
+}
+
 void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg )
 {
 	float rpm;
@@ -453,7 +557,7 @@ void NxtGenDriver::jointTrajCallback( const trajectory_msgs::JointTrajectoryCons
 				rpm = 60.0 * msg->points[0].velocities[i] / ( 2.0 * M_PI );
 
 				// Calculate rpm percentage for closed loop mode
-	                        rpm = 1000.0 * rpm / ( float )ch2_max_motor_rpm;
+							rpm = 1000.0 * rpm / ( float )ch2_max_motor_rpm;
 			}
 
 			if( invert ) rpm *= -1;
@@ -612,117 +716,9 @@ void NxtGenDriver::dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenCon
 	checkResult( result );
 }
 
-bool NxtGenDriver::resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res )
+bool NxtGenDriver::resetEncoderCallback( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res )
 {
-	int result;
-	bool reload_op_mode = false;
-	int prev_op_mode = operating_mode;
-
-	ROS_INFO( "Resetting encoder count..." );
-
-	// It's only safe to reset the encoder count in open-loop mode.
-	// Otherwise, the controller may see a huge jump in the encoder count
-	// and think the wheels are moving, with the result of it applying
-	// power to the motors (which we don't want it to do).
-	if( operating_mode != OperatingModes::OpenLoopSpeed )
-	{
-		ROS_INFO( "Temporarily setting controller into open-loop speed mode." );
-
-		// Set encoder 1 to open-loop mode
-		result = dev.SetConfig( _MMOD, 1, OperatingModes::OpenLoopSpeed );
-		if( !checkResult( result ) )
-			return false;
-
-		// Set encoder 2 to open-loop mode
-		result = dev.SetConfig( _MMOD, 2, OperatingModes::OpenLoopSpeed );
-		if( !checkResult( result ) )
-			return false;
-
-		ROS_INFO( "Verifing controller is in open-loop speed mode." );
-
-		result = dev.GetConfig( _MMOD, 1, operating_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		// Verify channel 1 is in open-loop speed mode
-		if( operating_mode != OperatingModes::OpenLoopSpeed )
-		{
-			ROS_ERROR( "Failed to set Channel 1 to open-loop speed mode." );
-			error_count++;
-			return false;
-		}
-
-		result = dev.GetConfig( _MMOD, 2, operating_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		// Verify channel 2 is in open-loop speed mode
-		if( operating_mode != OperatingModes::OpenLoopSpeed )
-                {
-                        ROS_ERROR( "Failed to set Channel 2 to open-loop speed mode." );
-                        error_count++;
-                        return false;
-                }
-
-		reload_op_mode = true;
-	}
-
-	// Reset encoder 1
-	result = dev.SetCommand( _HOME, 1 );
-	if( !checkResult( result ) )
-		return false;
-
-	// Reset encoder 2
-	result = dev.SetCommand( _HOME, 2 );
-	if( !checkResult( result ) )
-		return false;
-
-	ROS_INFO( "Successfully reset the encoders." );
-
-	if( reload_op_mode )
-	{
-		ROS_INFO( "Setting controller back to previous operating mode." );
-
-		// Set encoder 1 to previous operating mode
-		result = dev.SetConfig( _MMOD, 1, prev_op_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		// Set encoder 2 to previous operating mode
-		result = dev.SetConfig( _MMOD, 2, prev_op_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		ROS_INFO( "Verifing controller is in the correct operating mode." );
-
-		result = dev.GetConfig( _MMOD, 1, operating_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		// Verify channel 1 is in the correct mode
-		if( operating_mode != prev_op_mode )
-		{
-			ROS_ERROR( "Failed to reload Channel 1's operating mode." );
-			error_count++;
-			return false;
-		}
-
-		result = dev.GetConfig( _MMOD, 2, operating_mode );
-		if( !checkResult( result ) )
-			return false;
-
-		// Verify channel 2 is in the correct mode
-		if( operating_mode != prev_op_mode )
-		{
-			ROS_ERROR( "Failed to reload Channel 2's operating mode" );
-			error_count++;
-			return false;
-		}
-
-		ROS_INFO( "The previous operating mode has been successfully reloaded." );
-	}
-
-	return true;
+	return resetEncoderCount( );
 }
 
 bool NxtGenDriver::checkResult( int result )

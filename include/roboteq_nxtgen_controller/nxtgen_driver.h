@@ -123,18 +123,20 @@ class NxtGenDriver
 		bool getDigitalInputConfig( DigitalInputConfig &config );
 		bool getDigitalOutputConfig( DigitalOutputConfig &config );
 		bool getEncoderCountAbs( int &enc1, int &enc2 );
-                bool getEncoderCountRel( int &enc1, int &enc2 );
-                bool getMotorRPM( int &ch1, int &ch2 );
+		bool getEncoderCountRel( int &enc1, int &enc2 );
+		bool getMotorRPM( int &ch1, int &ch2 );
 		void publishJointStates( );
 		static std::string operatingModeToStr( OperatingMode op_mode );
 		static std::string digitalInputActionToStr( DigitalInputAction action );
 		static std::string digitalOutputActionToStr( DigitalOutputAction action );
+		bool resetEncoderCount( );
+		bool setOperatingMode( OperatingMode mode );
 
 	private:
 		void jointTrajCallback( const trajectory_msgs::JointTrajectoryConstPtr &msg );
 		void deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &status );
 		void dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenConfig &config, uint32_t level );
-		bool resetEncoderCount( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res );
+		bool resetEncoderCallback( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res );
 
 		bool checkResult( int result );
 
@@ -158,7 +160,8 @@ class NxtGenDriver
 		bool use_encoders;
 		int encoder_type; // 0 = hall sensor; not 0 = optical
 		int encoder_ppr;
-		int operating_mode;
+		bool reset_encoder_count;
+		OperatingMode operating_mode;
 		int ch1_max_motor_rpm;
 		int ch2_max_motor_rpm;
 
