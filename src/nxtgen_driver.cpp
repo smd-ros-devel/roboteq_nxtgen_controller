@@ -863,6 +863,10 @@ bool NxtGenDriver::checkResult( int result )
 			ROS_ERROR( "Failed to set device command" );
 			break;
 
+		case RQ_ERR_SERIAL_TIMEOUT: // 20
+			ROS_ERROR( "Timeout will reading from device." );
+			break;
+
 		default:
 			ROS_ERROR( "An unknown error code was returned" );
 			break;

@@ -20,4 +20,6 @@
 #define RQ_GET_VALUE_FAILED      15
 #define RQ_SET_COMMAND_FAILED    16
 
+#define RQ_ERR_SERIAL_TIMEOUT    20
+
 #endif

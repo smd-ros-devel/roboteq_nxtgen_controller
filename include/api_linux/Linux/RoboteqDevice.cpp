@@ -46,7 +46,7 @@ int RoboteqDevice::Connect(string port)
 	}
 
 	cout<<"succeeded."<<endl;
-	fcntl (handle, F_SETFL, O_APPEND | O_NONBLOCK);
+	fcntl (handle, F_SETFL, 0/*O_APPEND | O_NONBLOCK*/);
 
 	cout<<"Initializing port...";
 	InitPort();
@@ -87,7 +87,7 @@ void RoboteqDevice::InitPort()
 		return;
 
 	//Get the existing Comm Port Attributes in cwrget
-	int BAUDRATE = B9600;
+	int BAUDRATE = B500000;
 	struct termios newtio;
 	tcgetattr (handle, &newtio);
 
@@ -109,6 +109,9 @@ void RoboteqDevice::InitPort()
 
 	//cwrset.c_iflag |= (INPCK|ISTRIP);
 	//cwrset.c_cc[VMIN] = 6;
+
+	newtio.c_cc[VMIN] = 0;
+	newtio.c_cc[VTIME] = 1;
 
 	//Set the New Comm Port Attributes through cwrset
 	tcsetattr (handle, TCSANOW, &newtio);	/* Set the attribute NOW without waiting for Data to Complete*/
@@ -134,26 +137,35 @@ int RoboteqDevice::ReadAll(string &str)
 	if(!IsConnected())
 		return RQ_ERR_NOT_CONNECTED;
 
-	char buf[BUFFER_SIZE + 1] = "";
+	static char buf[BUFFER_SIZE + 1];// = "";
 
 	str = "";
 	int i = 0;
-	while((countRcv = read(handle, buf, BUFFER_SIZE)) > 0)
+/*	while((countRcv = read(handle, buf, BUFFER_SIZE)) > 0)
 	{
 		str.append(buf, countRcv);
 
 		//No further data.
 		if(countRcv < BUFFER_SIZE)
 			break;
+	}*/
+
+	int totalRcv = 0;
+	while(totalRcv < BUFFER_SIZE && (countRcv = read(handle, buf + totalRcv, BUFFER_SIZE - totalRcv)) > 0)
+	{
+		totalRcv += countRcv;
+
+		// No further data.
+		if(buf[totalRcv - 1] == '\r')
+			break;
 	}
 
-	if(countRcv < 0)
-	{
-		if(errno == EAGAIN)
-			return RQ_ERR_SERIAL_IO;
-		else
-			return RQ_ERR_SERIAL_RECEIVE;
-	}
+	str.append(buf, totalRcv);
+
+	if(countRcv == 0)
+		return RQ_ERR_SERIAL_TIMEOUT;
+	else if(countRcv < 0 || totalRcv >= BUFFER_SIZE)
+		return RQ_ERR_SERIAL_RECEIVE;
 
 	return RQ_SUCCESS;
 }
@@ -172,7 +184,7 @@ int RoboteqDevice::IssueCommand(string commandType, string command, string args,
 	if(status != RQ_SUCCESS)
 		return status;
 
-	usleep(waitms * 1000l);
+//	usleep(waitms * 1000l);
 
 	status = ReadAll(read);
 	if(status != RQ_SUCCESS)
