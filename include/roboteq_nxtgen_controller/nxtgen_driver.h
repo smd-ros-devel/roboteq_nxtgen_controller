@@ -155,6 +155,7 @@ class NxtGenDriver
 		std::string ch1_joint_name;
 		std::string ch2_joint_name;
 
+		bool single_channel;
 		bool invert;
 		bool enable_watchdog;
 		double watchdog_timeout; // timeout in seconds

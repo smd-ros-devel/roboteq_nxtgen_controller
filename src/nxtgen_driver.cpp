@@ -16,6 +16,7 @@ NxtGenDriver::NxtGenDriver( ros::NodeHandle &nh ) :
 
 	nh_priv.param<std::string>( "hardware_id", hardware_id, "RoboteQ NxtGen" );
 	nh_priv.param<std::string>( "port", port, "/dev/ttyUSB0" );
+	nh_priv.param<bool>( "single_channel", single_channel, true );
 	nh_priv.param<bool>( "invert", invert, false );
 
 	nh_priv.param<bool>( "enable_watchdog", enable_watchdog, true );
@@ -123,10 +124,13 @@ bool NxtGenDriver::init( )
 	if( !checkResult( result ) )
 		return false;
 
-	// Set channel 2 operating mode
-	result = dev.SetConfig( _MMOD, 2, operating_mode );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Set channel 2 operating mode
+		result = dev.SetConfig( _MMOD, 2, operating_mode );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	// Set RS232 watchdog timeout (0 means disabled)
 	result = dev.SetConfig( _RWD, enable_watchdog ? ( 1000 * ( int )watchdog_timeout ) : 0 );
@@ -138,10 +142,13 @@ bool NxtGenDriver::init( )
 	if( !checkResult( result ) )
 		return false;
 
-	// Set encoder 2 usage
-	result = dev.SetConfig( _EMOD, 2, use_encoders ? 33 : 32 );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Set encoder 2 usage
+		result = dev.SetConfig( _EMOD, 2, use_encoders ? 33 : 32 );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	// Encoder type (0 = hall sensor, any other value = optical encoder)
 	result = dev.SetConfig( _BLFB, ( encoder_type == 0 ) ? 0 : 1 );
@@ -155,20 +162,26 @@ bool NxtGenDriver::init( )
 	if( !checkResult( result ) )
 		return false;
 
-	// Set motor 2 max rpm
-	result = dev.SetConfig( _MXRPM, 2, ch2_max_motor_rpm );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Set motor 2 max rpm
+		result = dev.SetConfig( _MXRPM, 2, ch2_max_motor_rpm );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	// Set encoder 1 PPR
 	result = dev.SetConfig( _EPPR, 1, encoder_ppr );
 	if( !checkResult( result ) )
 		return false;
 
-	// Set encoder 2 PPR
-	result = dev.SetConfig( _EPPR, 2, encoder_ppr );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Set encoder 2 PPR
+		result = dev.SetConfig( _EPPR, 2, encoder_ppr );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	return true;
 }
@@ -246,13 +259,15 @@ void NxtGenDriver::publishJointStates( )
 			//joints.header.frame_id = joint_state_frame;
 
 			joints.name.push_back( ch1_joint_name );
-			joints.name.push_back( ch2_joint_name );
-
 			joints.position.push_back( 2.0 * M_PI * ( double )ch1_pos / ( 4.0 * ( double )encoder_ppr ) );
-			joints.position.push_back( 2.0 * M_PI * ( double )ch2_pos / ( 4.0 * ( double )encoder_ppr ) );
-
 			joints.velocity.push_back( 2.0 * M_PI * ( double )ch1_vel / 60.0 );
-			joints.velocity.push_back( 2.0 * M_PI * ( double )ch2_vel / 60.0 );
+
+			if( !single_channel )
+			{
+				joints.name.push_back( ch2_joint_name );
+				joints.position.push_back( 2.0 * M_PI * ( double )ch2_pos / ( 4.0 * ( double )encoder_ppr ) );
+				joints.velocity.push_back( 2.0 * M_PI * ( double )ch2_vel / 60.0 );
+			}
 
 			joint_state_pub.publish( joints );
 
@@ -347,9 +362,12 @@ bool NxtGenDriver::getEncoderCountAbs( int &enc1, int &enc2 )
 	if( !checkResult( result ) )
 		return false;
 
-	result = dev.GetValue( _ABCNTR, 2, enc2 );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		result = dev.GetValue( _ABCNTR, 2, enc2 );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	return true;
 }
@@ -362,9 +380,12 @@ bool NxtGenDriver::getEncoderCountRel( int &enc1, int &enc2 )
 	if( !checkResult( result ) )
 		return false;
 
-	result = dev.GetValue( _RELCNTR, 2, enc2 );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		result = dev.GetValue( _RELCNTR, 2, enc2 );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	return true;
 }
@@ -377,9 +398,12 @@ bool NxtGenDriver::getMotorRPM( int &ch1, int &ch2 )
 	if( !checkResult( result ) )
 		return false;
 
-	result = dev.GetValue( _ABSPEED, 2, ch2 );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		result = dev.GetValue( _ABSPEED, 2, ch2 );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	return true;
 }
@@ -464,10 +488,13 @@ bool NxtGenDriver::resetEncoderCount( )
 	if( !checkResult( result ) )
 		return false;
 
-	// Reset encoder 2
-	result = dev.SetCommand( _HOME, 2 );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Reset encoder 2
+		result = dev.SetCommand( _HOME, 2 );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	ROS_DEBUG( "Successfully reset the encoders." );
 
@@ -496,10 +523,13 @@ bool NxtGenDriver::setOperatingMode( OperatingMode mode )
 	if( !checkResult( result ) )
 		return false;
 
-	// Set channel 2 operating mode
-	result = dev.SetConfig( _MMOD, 2, mode );
-	if( !checkResult( result ) )
-		return false;
+	if( !single_channel )
+	{
+		// Set channel 2 operating mode
+		result = dev.SetConfig( _MMOD, 2, mode );
+		if( !checkResult( result ) )
+			return false;
+	}
 
 	ROS_DEBUG( "Verifing controller is in %s mode.", mode_str );
 
@@ -516,17 +546,20 @@ bool NxtGenDriver::setOperatingMode( OperatingMode mode )
 		return false;
 	}
 
-	// Get channel 2's operating mode
-	result = dev.GetConfig( _MMOD, 2, *( ( int* )&operating_mode ) );
-	if( !checkResult( result ) )
-		return false;
-
-	// Verify channel 2 is in open-loop speed mode
-	if( operating_mode != mode )
+	if( !single_channel )
 	{
-		ROS_ERROR( "Failed to set channel 2 to %s mode.", mode_str );
-		error_count++;
-		return false;
+		// Get channel 2's operating mode
+		result = dev.GetConfig( _MMOD, 2, *( ( int* )&operating_mode ) );
+		if( !checkResult( result ) )
+			return false;
+
+		// Verify channel 2 is in open-loop speed mode
+		if( operating_mode != mode )
+		{
+			ROS_ERROR( "Failed to set channel 2 to %s mode.", mode_str );
+			error_count++;
+			return false;
+		}
 	}
 
 	return true;
@@ -620,9 +653,12 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		if( !checkResult( result ) )
 			errors = true;
 
-		result = dev.GetValue( _MMOD, 2, ch2_op_mode );
-		if( !checkResult( result ) )
-			errors = true;
+		if( !single_channel )
+		{
+			result = dev.GetValue( _MMOD, 2, ch2_op_mode );
+			if( !checkResult( result ) )
+				errors = true;
+		}
 
 		result = dev.GetValue( _VOLTS, 1, driver_voltage );
 		if( !checkResult( result ) )
@@ -648,9 +684,12 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		if( !checkResult( result ) )
 			errors = true;
 
-		result = dev.GetValue( _MOTAMPS, 2, motor2_amps );
-		if( !checkResult( result ) )
-			errors = true;
+		if( !single_channel )
+		{
+			result = dev.GetValue( _MOTAMPS, 2, motor2_amps );
+			if( !checkResult( result ) )
+				errors = true;
+		}
 
 		result = dev.GetValue( _TEMP, 1, internal_ic_temp );
 		if( !checkResult( result ) )
@@ -664,9 +703,12 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		if( !checkResult( result ) )
 			errors = true;
 
-		result = dev.GetValue( _MOTPWR, 2, motor2_power_output );
-		if( !checkResult( result ) )
-			errors = true;
+		if( !single_channel )
+		{
+			result = dev.GetValue( _MOTPWR, 2, motor2_power_output );
+			if( !checkResult( result ) )
+				errors = true;
+		}
 
 		result = dev.GetValue( _FLTFLAG, fault_flag );
 		if( !checkResult( result ) )
@@ -766,25 +808,34 @@ void NxtGenDriver::dynRecogCallback( roboteq_nxtgen_controller::RoboteqNxtGenCon
 	result = dev.SetConfig( _MAC, 1, config.acceleration );
 	checkResult( result );
 
-	// Channel 2 acceleration
-	result = dev.SetConfig( _MAC, 2, config.acceleration );
-	checkResult( result );
+	if( !single_channel )
+	{
+		// Channel 2 acceleration
+		result = dev.SetConfig( _MAC, 2, config.acceleration );
+		checkResult( result );
+	}
 
 	// Channel 1 deceleration
 	result = dev.SetConfig( _MDEC, 1, config.deceleration );
 	checkResult( result );
 
-	// Channel 2 deceleration
-	result = dev.SetConfig( _MDEC, 2, config.deceleration );
-	checkResult( result );
+	if( !single_channel )
+	{
+		// Channel 2 deceleration
+		result = dev.SetConfig( _MDEC, 2, config.deceleration );
+		checkResult( result );
+	}
 
 	// Channel 1 command linearity
 	result = dev.SetConfig( _CLIN, 1, config.command_linearity );
 	checkResult( result );
 
-	// Channel 2 command linearity
-	result = dev.SetConfig( _CLIN, 2, config.command_linearity );
-	checkResult( result );
+	if( !single_channel )
+	{
+		// Channel 2 command linearity
+		result = dev.SetConfig( _CLIN, 2, config.command_linearity );
+		checkResult( result );
+	}
 }
 
 bool NxtGenDriver::resetEncoderCallback( std_srvs::Empty::Request &req, std_srvs::Empty::Response &res )
