@@ -676,9 +676,12 @@ void NxtGenDriver::deviceStatus( diagnostic_updater::DiagnosticStatusWrapper &st
 		if( !checkResult( result ) )
 			errors = true;
 
-		result = dev.GetValue( _BATAMPS, 2, battery2_amps );
-		if( !checkResult( result ) )
-			errors = true;
+		if( !single_channel )
+		{
+			result = dev.GetValue( _BATAMPS, 2, battery2_amps );
+			if( !checkResult( result ) )
+				errors = true;
+		}
 
 		result = dev.GetValue( _MOTAMPS, 1, motor1_amps );
 		if( !checkResult( result ) )
